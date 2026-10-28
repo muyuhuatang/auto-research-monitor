@@ -280,6 +280,9 @@
   .flowstrip .arr { color: var(--violet); font-weight: 700; }
 
   /* ---------- DEMOS ---------- */
+  .demo-cta { display: flex; flex-wrap: wrap; align-items: center; gap: .7rem 1.1rem; margin-top: 1.6rem; }
+  .demo-cta span { color: var(--ink-faint); font-size: .9rem; flex: 1 1 22ch; }
+  .demo-cta span a { color: var(--violet-deep); text-decoration: underline; text-underline-offset: 2px; }
   .demo-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 18px; margin-top: 3rem; }
   .demo {
     background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius);
@@ -355,7 +358,7 @@
     .codecard, .cred-grid { grid-template-columns: 1fr; }
     .terminal { border-left: none; border-top: 1px solid #1d1b25; }
     .demo-grid { grid-template-columns: repeat(2, 1fr); }
-    .demo.span3, .demo.span2 { grid-column: span 2; }
+    .demo.span3, .demo.span2, .demo.span6 { grid-column: span 2; }
     .crisis-feat { grid-template-columns: 1fr; }
     .crisis-feat .right { margin-top: 18px; }
   }
@@ -371,7 +374,7 @@
   @media (max-width: 620px){
     body { font-size: 16px; }
     .feature-grid, .demo-grid { grid-template-columns: 1fr; }
-    .demo.span3, .demo.span2 { grid-column: span 1; }
+    .demo.span3, .demo.span2, .demo.span6 { grid-column: span 1; }
     .foot-grid { grid-template-columns: 1fr 1fr; }
     .foot-col.first { grid-column: 1 / -1; }
     .crisis-feat .right { grid-template-columns: repeat(3,1fr); }
@@ -652,6 +655,7 @@
       <span class="eyebrow">Five ways to see it</span>
       <h2 id="demo-h">Watch it map real reasoning, live.</h2>
       <p>Five bundled demos, from a streaming SDK build to a real Claude Opus agent being graded on its own evidence.</p>
+      <div class="demo-cta"><a class="btn btn-violet" href="demo/">⧉ Open the live demo</a><span>Four finished example runs, read-only in your browser. The five demos below run on your own machine after the <a href="#quickstart">quick start</a>.</span></div>
     </div>
 
     <div class="demo-grid">
