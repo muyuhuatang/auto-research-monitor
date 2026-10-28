@@ -1,0 +1,675 @@
+/* ============================================================================
+   polish.css — purely additive presentation layer, loaded AFTER style.css.
+
+   Contract:
+     * No markup change is required by anything in here. Remove the <link> and
+       the app is byte-for-byte the app it was before.
+     * This file is linked from frontend/index.html only — see section 9.
+     * Every selector below was read out of frontend/index.html or
+       frontend/app.js. Nothing is guessed.
+     * Colours come from the variables declared in style.css. Where a shade is
+       needed that has no variable, it is derived with color-mix() from one that
+       does — the same technique style.css already uses for .conn-status.
+     * All motion sits behind prefers-reduced-motion (see the final block, which
+       also neutralises the animations style.css itself declares).
+
+   Sections
+     1. Tokens
+     2. Keyboard focus
+     3. Depth & elevation
+     4. Scrollbars
+     5. Waiting, in-flight and skeleton states
+     6. Report / conclusion markdown: typography and dense tables
+     7. Micro-interaction
+     8. Responsive degradation
+     9. Why dashboard.html is not linked to this file
+    10. prefers-reduced-motion
+    11. Light theme
+   ========================================================================== */
+
+
+/* --------------------------------------------------------------------------
+   1. Tokens
+   Only shadow ramps and two timing values. No new hues.
+   -------------------------------------------------------------------------- */
+:root {
+    --plx-fast: 140ms;
+    --plx-base: 220ms;
+    --plx-ease: cubic-bezier(0.25, 0.8, 0.25, 1);
+
+    /* Shadow ramp. style.css already ships --elev-1 / --elev-2 / --glow;
+       this fills the gap between them for things floating over the canvas. */
+    --plx-float:  0 8px 24px -10px rgba(0, 0, 0, 0.65), 0 0 0 1px var(--hair);
+
+    /* Neutral fills derived from the text colour so they track the theme. */
+    --plx-tint-1: color-mix(in srgb, var(--text) 3%, transparent);
+    --plx-tint-2: color-mix(in srgb, var(--text) 6%, transparent);
+    --plx-tint-3: color-mix(in srgb, var(--text) 10%, transparent);
+}
+
+
+/* --------------------------------------------------------------------------
+   2. Keyboard focus
+   The app had no visible focus anywhere: style.css sets outline:none on the
+   two inputs and never replaces it. An outline (not a box-shadow) is used so
+   it composes with the accent box-shadow those inputs already grow on :focus.
+   :focus-visible means mouse users never see it.
+   -------------------------------------------------------------------------- */
+:where(a[href], button, input, select, textarea, summary, [tabindex]):focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+/* These two must repeat the outline, not just tune the offset: style.css
+   declares `outline: none` on `.search-box input:focus` / `.cfg-input:focus`
+   (specificity 0,2,0) and :focus-visible is a subset of :focus, so the
+   zero-specificity :where() rule above would lose to it. Matching 0,2,0 and
+   arriving later wins. Offset is tighter because they sit flush in a panel. */
+.search-box input:focus-visible,
+.cfg-input:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+}
+
+/* The <details> in the credibility sidebar is a real keyboard stop. */
+.cred-help summary:focus-visible {
+    outline-offset: 3px;
+    border-radius: 4px;
+}
+
+/* Cytoscape gives #cy a tabindex; a ring around the whole canvas is correct,
+   but it should sit inside so it is not clipped by .graph-area's overflow. */
+#cy:focus-visible {
+    outline-offset: -2px;
+}
+
+
+/* --------------------------------------------------------------------------
+   3. Depth & elevation
+   The three columns currently meet at a 1px hairline and read as one flat
+   plane. Giving the side panels a positioning context lets their shadow fall
+   over the graph, which is what separates "chrome" from "canvas".
+   -------------------------------------------------------------------------- */
+/* z-index budget already in use inside .graph-area (which is position:relative
+   with z-index:auto, so its children compete at the root level):
+     bgfx 0 · swimlanes 0 · #cy 1 · glow 2 · graph-empty 5 · graph-error 6 ·
+     minimap 20 · path-status 20 · settings-dropdown 50 · modals 100 ·
+     tooltip 200.
+   Panels take 4: above every canvas layer so their shadow falls on the graph,
+   below every overlay. */
+.sidebar,
+.right-panel,
+footer {
+    position: relative;
+    z-index: 4;
+}
+
+.sidebar     { box-shadow:  6px 0 18px -12px rgba(0, 0, 0, 0.9); }
+.right-panel { box-shadow: -6px 0 18px -12px rgba(0, 0, 0, 0.9); }
+footer       { box-shadow: 0 -6px 18px -14px rgba(0, 0, 0, 0.9); }
+
+/* 60, not 4: positioning the header makes it a stacking context, which caps
+   .settings-dropdown's z-index:50 at the header's own value. Anything lower
+   than 20 would let #minimap and .path-status paint over the open dropdown. */
+header {
+    position: relative;
+    z-index: 60;
+    box-shadow: var(--elev-1), 0 10px 24px -20px rgba(0, 0, 0, 0.9);
+}
+
+/* The file panel is a second surface stacked inside the right panel. */
+.file-panel {
+    box-shadow: 0 -8px 18px -16px rgba(0, 0, 0, 0.9);
+}
+
+/* Floating things over the canvas get real lift. */
+#minimap,
+.path-status,
+.graph-error,
+.graph-tooltip {
+    box-shadow: var(--plx-float);
+}
+
+/* The two largest floaters sit further off the page. */
+.graph-empty,
+.settings-dropdown {
+    box-shadow: var(--elev-2), 0 0 0 1px var(--hair);
+}
+
+/* NOTE: no backdrop-filter on .graph-empty. It sits directly over #bgfx/#glow,
+   which repaint every frame from a requestAnimationFrame loop (app.js glowLoop),
+   so a blur there would re-run over an animating surface on the one state a new
+   user stares at longest. Its color-mix() surface fill already separates it. */
+
+/* Modals: a wider report (its tables are the widest thing in the app).
+   `.visible` is the class app.js adds to open all three overlays.
+   The .modal shadow itself is left to style.css — it already declares
+   `var(--elev-2), 0 0 0 1px rgba(255,255,255,0.03)` and does not need restating. */
+#audit-modal .modal {
+    max-width: min(980px, 94vw);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .modal-overlay.visible {
+        animation: plx-fade var(--plx-fast) ease-out;
+    }
+    .modal-overlay.visible > .modal {
+        animation: plx-rise var(--plx-base) var(--plx-ease);
+    }
+}
+
+@keyframes plx-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes plx-rise {
+    from { opacity: 0; transform: translateY(10px) scale(0.985); }
+    to   { opacity: 1; transform: none; }
+}
+
+
+/* --------------------------------------------------------------------------
+   4. Scrollbars
+   style.css styles the scrollbar globally with a fixed violet thumb. Here the
+   thumb is quietened at rest and brightens when the pane it belongs to is
+   hovered, and Firefox gets the equivalent through scrollbar-color.
+   -------------------------------------------------------------------------- */
+.sidebar,
+.search-results,
+.activity-log,
+.file-panel-body,
+.modal-body,
+.evolve-prompt {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--accent) 22%, transparent) transparent;
+}
+
+.sidebar:hover,
+.search-results:hover,
+.activity-log:hover,
+.file-panel-body:hover,
+.modal-body:hover,
+.evolve-prompt:hover {
+    scrollbar-color: color-mix(in srgb, var(--accent) 50%, transparent) transparent;
+}
+
+.sidebar::-webkit-scrollbar-thumb,
+.search-results::-webkit-scrollbar-thumb,
+.activity-log::-webkit-scrollbar-thumb,
+.file-panel-body::-webkit-scrollbar-thumb,
+.modal-body::-webkit-scrollbar-thumb,
+.evolve-prompt::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--accent) 14%, transparent);
+    background-clip: padding-box;
+    transition: background-color var(--plx-base) ease;
+}
+
+.sidebar:hover::-webkit-scrollbar-thumb,
+.search-results:hover::-webkit-scrollbar-thumb,
+.activity-log:hover::-webkit-scrollbar-thumb,
+.file-panel-body:hover::-webkit-scrollbar-thumb,
+.modal-body:hover::-webkit-scrollbar-thumb,
+.evolve-prompt:hover::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--accent) 42%, transparent);
+    background-clip: padding-box;
+}
+
+/* Corner between the two bars was left with the UA default. */
+::-webkit-scrollbar-corner { background: transparent; }
+
+
+/* --------------------------------------------------------------------------
+   5. Waiting, in-flight and skeleton states
+   Three different kinds of "not yet", each with its own animation, so the
+   motion says which kind it is:
+     ripple   -> listening, nothing has arrived
+     sweep    -> a request is open right now
+     skeleton -> a response is on its way and we know its shape
+   Every trigger below is a state the running app actually produces.
+   -------------------------------------------------------------------------- */
+
+/* (a) LISTENING. .activity-empty and .file-empty are in index.html and are
+   re-created verbatim by app.js (clearActivity / the file panel reset). */
+.activity-empty,
+.file-empty {
+    position: relative;
+    padding-left: 1.5rem;
+}
+
+.activity-empty::before,
+.file-empty::before {
+    content: "";
+    position: absolute;
+    left: 0.5rem;
+    top: 0.62em;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--text-muted);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .activity-empty::before,
+    .file-empty::before {
+        animation: plx-listen 2.4s ease-out infinite;
+    }
+}
+
+@keyframes plx-listen {
+    0%   { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 45%, transparent); opacity: 0.95; }
+    70%  { box-shadow: 0 0 0 8px transparent; opacity: 0.45; }
+    100% { box-shadow: 0 0 0 0 transparent; opacity: 0.95; }
+}
+
+.file-empty::before { left: 0.15rem; }
+
+/* (b) REQUEST OPEN. withBusy() in app.js disables exactly the .sidebar-btn
+   controls for the duration of a fetch (Summarize, Force-generate, Deepen,
+   Launch CC workflow, Run LLM edge inference) and re-enables them in a
+   finally block. So .sidebar-btn[disabled] is a reliable "in flight" signal —
+   and nothing else in the app disables a .sidebar-btn. #file-open and
+   .job-cancel are deliberately not matched: their disabled state means
+   "nothing to do", not "working". */
+.sidebar-btn[disabled] {
+    position: relative;
+    overflow: hidden;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .sidebar-btn[disabled]::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        background-image: linear-gradient(100deg,
+            transparent 28%,
+            color-mix(in srgb, var(--accent) 30%, transparent) 50%,
+            transparent 72%);
+        background-size: 220% 100%;
+        background-repeat: no-repeat;
+        animation: plx-sweep 1.15s linear infinite;
+    }
+}
+
+@keyframes plx-sweep {
+    from { background-position: -110% 0; }
+    to   { background-position:  210% 0; }
+}
+
+/* (c) SKELETON — "a response is coming and we know roughly its shape".
+   One definition, applied to the three states that can be detected from the DOM
+   the app actually builds. Every selector in the group uses :has(), so in a
+   browser without :has() the whole rule is invalid and dropped (a comma list is
+   NOT forgiving outside :is()/:where()) — which is exactly the intended
+   degradation: today's behaviour, no skeleton, nothing half-applied. */
+#audit-body:not(:has(*))::after,
+#conclusion-body:not(:has(*))::after,
+#file-panel-body:has(> .file-meta):not(:has(pre))::after {
+    content: "";
+    display: block;
+    margin-top: 0.85rem;
+    border-radius: 6px;
+    background-image:
+        linear-gradient(100deg,
+            transparent 25%,
+            var(--plx-tint-3) 45%,
+            transparent 65%),
+        repeating-linear-gradient(to bottom,
+            var(--plx-tint-2) 0 9px,
+            transparent 9px 22px);
+    background-size: 220% 100%, 100% 100%;
+    background-position: -110% 0, 0 0;
+    background-repeat: no-repeat;
+}
+
+/* Report + conclusion modal bodies. app.js writes a bare text node
+   ("Loading…" / "Loading conclusion…") before the fetch resolves and then
+   replaces it with marked.parse() output — i.e. with element children. Every
+   settled state (content, "no results to converge yet", "could not load")
+   contains at least one element, so "text and no elements" is unambiguously
+   the pre-response state. */
+#audit-body:not(:has(*))::after,
+#conclusion-body:not(:has(*))::after {
+    height: 11rem;
+}
+
+/* The file panel. showNodeFile() writes a lone `.file-meta` while
+   /api/fs/read is open; every settled state also carries a
+   <pre class="file-content">, and the untouched state is `.file-empty`.
+   So "a .file-meta and no <pre>" is exactly the loading window. */
+#file-panel-body:has(> .file-meta):not(:has(pre))::after {
+    height: 5.5rem;
+    margin-top: 0.5rem;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    #audit-body:not(:has(*))::after,
+    #conclusion-body:not(:has(*))::after,
+    #file-panel-body:has(> .file-meta):not(:has(pre))::after {
+        animation: plx-shimmer 1.5s linear infinite;
+    }
+}
+
+@keyframes plx-shimmer {
+    from { background-position: -110% 0, 0 0; }
+    to   { background-position:  210% 0, 0 0; }
+}
+
+
+/* --------------------------------------------------------------------------
+   6. Report / conclusion markdown
+   These two bodies receive marked.parse() output: h1-h4, p, ul/ol, hr,
+   blockquote, code, and GFM tables (server/graph/report.py emits a Findings table and
+   an edge-policy table). style.css only styles `.modal-body h3` and
+   `.modal-body ul`, and the global `* { margin: 0 }` reset means paragraphs
+   currently run together with no separation at all.
+
+   Scoped by id, not by .modal-body, so the config modal's form is untouched.
+   -------------------------------------------------------------------------- */
+#audit-body p, #audit-body li, #audit-body blockquote,
+#conclusion-body p, #conclusion-body li, #conclusion-body blockquote {
+    overflow-wrap: anywhere;
+}
+
+#audit-body p,
+#conclusion-body p {
+    margin: 0.6rem 0;
+}
+
+#audit-body h1, #conclusion-body h1 { font-size: 1.12rem; font-weight: 700; letter-spacing: 0.01em; margin: 0.2rem 0 0.6rem; }
+#audit-body h2, #conclusion-body h2 {
+    font-size: 0.95rem;
+    font-weight: 600;
+    margin: 1.5rem 0 0.5rem;
+    padding-bottom: 0.3rem;
+    border-bottom: 1px solid var(--hair);
+    letter-spacing: 0.01em;
+}
+#audit-body h3, #conclusion-body h3 { font-size: 0.86rem; font-weight: 600; margin: 1.05rem 0 0.3rem; }
+#audit-body h4, #conclusion-body h4 {
+    font-size: 0.72rem;
+    font-weight: 600;
+    margin: 0.85rem 0 0.25rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+#audit-body hr,
+#conclusion-body hr {
+    border: none;
+    border-top: 1px solid var(--hair);
+    margin: 1.35rem 0;
+}
+
+#audit-body ul, #audit-body ol,
+#conclusion-body ul, #conclusion-body ol {
+    padding-left: 1.15rem;
+    margin: 0.5rem 0;
+}
+#audit-body li, #conclusion-body li { margin: 0.22rem 0; }
+
+#audit-body blockquote,
+#conclusion-body blockquote {
+    margin: 0.7rem 0;
+    padding: 0.45rem 0.8rem;
+    border-left: 2px solid var(--accent-line);
+    background: var(--plx-tint-1);
+    border-radius: 0 6px 6px 0;
+    color: var(--text-muted);
+}
+#audit-body blockquote p,
+#conclusion-body blockquote p { margin: 0.25rem 0; }
+
+#audit-body code,
+#conclusion-body code {
+    font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+    font-size: 0.86em;
+    padding: 0.05em 0.35em;
+    border-radius: 4px;
+    background: var(--plx-tint-2);
+}
+
+#audit-body pre,
+#conclusion-body pre {
+    margin: 0.7rem 0;
+    padding: 0.7rem 0.85rem;
+    border: 1px solid var(--hair);
+    border-radius: 8px;
+    background: var(--bg);
+    overflow: auto;
+    font-size: 0.72rem;
+    line-height: 1.5;
+}
+#audit-body pre code,
+#conclusion-body pre code { background: none; padding: 0; }
+
+/* ---- Tables: denser, aligned, and horizontally scrollable in place -------
+   display:block turns the table into its own x-scroll container so a wide
+   Findings table never forces the modal body to scroll sideways. This is the
+   standard GFM treatment and it degrades to a plain table if anything is off. */
+#audit-body table,
+#conclusion-body table {
+    display: block;
+    width: max-content;
+    max-width: 100%;
+    overflow-x: auto;
+    margin: 0.75rem 0 1.1rem;
+    border-collapse: separate;
+    border-spacing: 0;
+    border: 1px solid var(--hair);
+    border-radius: 8px;
+    font-size: 0.78rem;
+    line-height: 1.45;
+    font-variant-numeric: tabular-nums;
+}
+
+#audit-body th, #audit-body td,
+#conclusion-body th, #conclusion-body td {
+    padding: 0.36rem 0.65rem;
+    text-align: left;
+    vertical-align: top;
+    border-bottom: 1px solid var(--hair);
+    overflow-wrap: break-word;
+}
+
+#audit-body thead th,
+#conclusion-body thead th {
+    background: var(--surface2);
+    color: var(--text-muted);
+    font-size: 0.66rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    white-space: nowrap;
+}
+
+#audit-body tbody tr:last-child td,
+#conclusion-body tbody tr:last-child td { border-bottom: none; }
+
+#audit-body tbody tr:nth-child(even) td,
+#conclusion-body tbody tr:nth-child(even) td { background: var(--plx-tint-1); }
+
+#audit-body tbody tr:hover td,
+#conclusion-body tbody tr:hover td { background: var(--accent-soft); }
+
+/* Numeric-looking cells (the credibility column) read better unwrapped. */
+#audit-body td code,
+#conclusion-body td code { white-space: nowrap; }
+
+
+/* --------------------------------------------------------------------------
+   7. Micro-interaction
+   Small, uniform: rows nudge, cards lift, nothing reflows.
+   -------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: no-preference) {
+    .search-result-item {
+        transition: background var(--plx-fast) ease,
+                    transform var(--plx-fast) var(--plx-ease);
+    }
+    .search-result-item:hover {
+        transform: translateX(2px);
+    }
+
+    .activity-item {
+        transition: background var(--plx-fast) ease;
+    }
+
+    .job-row .job-cancel,
+    .right-panel-head button,
+    .file-panel-head button,
+    .modal-close,
+    .report-download {
+        transition: color var(--plx-fast) ease,
+                    border-color var(--plx-fast) ease,
+                    background var(--plx-fast) ease;
+    }
+}
+
+/* Hover affordance, not motion — outside the reduced-motion gate above.
+   .legend-item already declares `transition: background` in style.css. */
+.legend-item:hover:not(.active) { background: var(--plx-tint-2); }
+.modal-close:hover { color: var(--text); }
+
+/* NOTE: no glow on .detail-panel .score-fill. Its colour is an inline
+   `background` written by app.js from _credColor(), which CSS cannot read — a
+   `box-shadow: … currentColor` would halo it in the inherited --text cream,
+   i.e. a colour that contradicts the credibility rating it is reporting. */
+
+
+/* --------------------------------------------------------------------------
+   8. Responsive degradation
+   Today .sidebar is a hard 320px and .right-panel a hard 300px, both with
+   matching min-width, so below ~1000px the graph column is crushed to a strip
+   and below ~700px it disappears entirely. Three steps: tighten, then tighten
+   harder and drop the legend to one column, then stack.
+
+   Deliberately NOT touched: #minimap. app.js sets its style.width/height
+   inline to 180x120 and its click handler maps client coordinates onto that
+   size unscaled, so any CSS resize would silently mis-aim the pan.
+   -------------------------------------------------------------------------- */
+
+@media (max-width: 1250px) {
+    .sidebar     { width: 282px; min-width: 282px; }
+    .right-panel { width: 262px; min-width: 262px; }
+    .sidebar section { padding: 0.65rem 0.8rem; }
+}
+
+@media (max-width: 1100px) {
+    header { flex-wrap: wrap; row-gap: 0.4rem; }
+    header .controls { margin-left: auto; }
+
+    .sidebar     { width: 246px; min-width: 246px; }
+    .right-panel { width: 230px; min-width: 230px; }
+
+    /* Two columns of legend swatches stop fitting the label text here. */
+    .legend { grid-template-columns: 1fr; }
+
+    .conclusion-hint,
+    .cred-help { font-size: 0.7rem; }
+}
+
+@media (max-width: 900px) {
+    /* Stack. Percentages are viewport-relative so the graph keeps a usable
+       share on any height, and every band can still shrink if the viewport is
+       short (flex-shrink stays 1 on the two panels). */
+    .main-layout { flex-direction: column; }
+
+    .sidebar {
+        width: auto;
+        min-width: 0;
+        flex: 0 1 auto;
+        max-height: 34vh;
+        border-right: none;
+        border-bottom: 1px solid var(--hair);
+        box-shadow: 0 6px 18px -14px rgba(0, 0, 0, 0.9);
+    }
+
+    .right-panel {
+        width: auto;
+        min-width: 0;
+        flex: 0 1 auto;
+        max-height: 26vh;
+        border-left: none;
+        border-top: 1px solid var(--hair);
+        box-shadow: 0 -6px 18px -14px rgba(0, 0, 0, 0.9);
+    }
+
+    /* flex-basis stays 0 (as style.css sets it): the comment above .graph-area
+       there records that a content-sized basis is what let the Cytoscape canvas
+       block the flex item from shrinking. Only the axis changes here. */
+    .graph-area {
+        flex: 1 1 0%;
+        min-height: 30vh;
+    }
+
+    /* The sidebar is full-width again once stacked, so the legend goes back to
+       two swatches per row (undoing the 1100px single-column step above). */
+    .legend { grid-template-columns: 1fr 1fr; }
+    .file-panel { max-height: 55%; }
+    .graph-empty { max-width: 92%; }
+    .graph-empty pre { font-size: 0.66rem; }
+}
+
+@media (max-width: 620px) {
+    header { padding: 0.45rem 0.6rem; gap: 0.4rem; }
+    header h1 { font-size: 0.9rem; }
+    header .controls { gap: 0.35rem; flex-wrap: wrap; }
+    header button { padding: 0.3rem 0.55rem; font-size: 0.74rem; }
+    .usage-readout { font-size: 0.7rem; }
+
+    .sidebar { max-height: 40vh; }
+    .modal { width: 96%; max-height: 88vh; }
+    #audit-modal .modal { max-width: 96vw; }
+    .modal-body { padding: 0.8rem; }
+}
+
+
+/* --------------------------------------------------------------------------
+   9. NOT dashboard.html.
+   This file is linked from index.html only. dashboard.html carries its own
+   <style> block which already declares focus-visible rings, hover-only
+   scrollbars, a max-width:640px breakpoint and a prefers-reduced-motion
+   block of its own. Loading this layer there would silently override those
+   deliberate choices (e.g. its transparent-until-hover scrollbar thumb), so
+   it is deliberately left out. Nothing below assumes dashboard markup.
+   -------------------------------------------------------------------------- */
+
+
+/* --------------------------------------------------------------------------
+   10. prefers-reduced-motion
+   Last, and deliberately global: it also stops the animations style.css
+   declares (act-in on every arriving activity row, conn-pulse on the
+   reconnecting chip, job-pulse on a running workflow). Static end states stay
+   legible — the connection chip keeps its colour, the skeleton keeps its bars.
+   -------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 1ms !important;
+        animation-delay: 0ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 1ms !important;
+        transition-delay: 0ms !important;
+        scroll-behavior: auto !important;
+    }
+}
+
+
+/* --------------------------------------------------------------------------
+   11. Light theme
+   The edge shadows in section 3 are black at 0.9 so they read on a near-black
+   page; on the light page they print as grime. Same geometry, a fraction of the
+   ink. Tokens for the light palette live in style.css.
+   -------------------------------------------------------------------------- */
+:root[data-theme="light"] {
+    --plx-float: 0 8px 22px -12px rgba(24, 20, 36, 0.22), 0 0 0 1px var(--hair);
+}
+:root[data-theme="light"] .sidebar     { box-shadow:  6px 0 18px -14px rgba(24, 20, 36, 0.22); }
+:root[data-theme="light"] .right-panel { box-shadow: -6px 0 18px -14px rgba(24, 20, 36, 0.22); }
+:root[data-theme="light"] footer       { box-shadow: 0 -6px 18px -16px rgba(24, 20, 36, 0.22); }
+:root[data-theme="light"] header       { box-shadow: var(--elev-1), 0 10px 24px -22px rgba(24, 20, 36, 0.30); }
+:root[data-theme="light"] .file-panel  { box-shadow: 0 -8px 18px -18px rgba(24, 20, 36, 0.22); }
+
+@media (max-width: 900px) {
+    :root[data-theme="light"] .sidebar     { box-shadow: 0 6px 18px -16px rgba(24, 20, 36, 0.22); }
+    :root[data-theme="light"] .right-panel { box-shadow: 0 -6px 18px -16px rgba(24, 20, 36, 0.22); }
+}

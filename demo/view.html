@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <script src="demo.js"></script>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Auto-Research Monitor</title>
+    <!-- Sets data-theme before first paint, so the page never flashes the wrong theme. -->
+    <script src="theme.js?v=1"></script>
+    <link rel="stylesheet" href="style.css?v=29" />
+    <!-- Additive polish layer: motion, depth, focus rings, skeletons, responsive.
+         Must load after style.css. Removing this line restores the base styling. -->
+    <link rel="stylesheet" href="polish.css?v=3" />
+    <!-- Pinned by Subresource Integrity: the browser refuses to run any of these if the
+         CDN serves different bytes. Hashes are of the published npm files (unpkg and
+         jsDelivr agree); a version bump needs a new hash, or the viewer will not draw. -->
+    <script src="https://unpkg.com/cytoscape@3.28.1/dist/cytoscape.min.js" integrity="sha384-J7Q85oZE4GJ/e7+n2aOQsLXfDwwfnA8S2nZAL5BpFsfpCF84zQD7LroZ/dMnLgex" crossorigin="anonymous"></script>
+    <script src="https://unpkg.com/dagre@0.8.5/dist/dagre.min.js" integrity="sha384-2IH3T69EIKYC4c+RXZifZRvaH5SRUdacJW7j6HtE5rQbvLhKKdawxq6vpIzJ7j9M" crossorigin="anonymous"></script>
+    <script src="https://unpkg.com/cytoscape-dagre@2.5.0/cytoscape-dagre.js" integrity="sha384-u69h9ebXeSjlg6q/rb1zKTRAGu/h8deCl0409xpS/QJctMKnc4M9Fzkm01VOQdeF" crossorigin="anonymous"></script>
+    <!-- fcose force layout (Organic mode). Load order matters: layout-base → cose-base → fcose.
+         fcose auto-registers against the global cytoscape; .min.js 404s on unpkg, use the .js builds. -->
+    <script src="https://unpkg.com/layout-base@2.0.1/layout-base.js" integrity="sha384-5E2lB9AIGE6LRCnOOSTnZRlYZFZ01iMeN2fw97Z1r4Z/kXALxKw2AC+ZzQqoeDsG" crossorigin="anonymous"></script>
+    <script src="https://unpkg.com/cose-base@2.2.0/cose-base.js" integrity="sha384-RswRBkrMsPUYpJLbZ1CVA08zbNzAkykE2oGJTujBwfjWNdfxv2WVjLJNqv1LhAOp" crossorigin="anonymous"></script>
+    <script src="https://unpkg.com/cytoscape-fcose@2.2.0/cytoscape-fcose.js" integrity="sha384-uk5Wbjq1+KqUdHO30w7N7GrEGdzBhaJeW9o/ANF6v9+yx3M/cBmoX51C000JNCUf" crossorigin="anonymous"></script>
+    <script src="https://unpkg.com/marked@12.0.0/marked.min.js" integrity="sha384-NNQgBjjuhtXzPmmy4gurS5X7P4uTt1DThyevz4Ua0IVK5+kazYQI1W27JHjbbxQz" crossorigin="anonymous"></script>
+    <link rel="stylesheet" href="demo.css" />
+</head>
+<body>
+    <header>
+        <h1>Auto-Research Monitor</h1>
+        <a href="index.html" class="btn-dashboard" title="Back to dashboard">&larr; Dashboard</a>
+        <button id="usage-readout" class="usage-readout" title="API token usage &amp; estimated cost — click to open Config">&#9211; — tok &middot; ~$0.00</button>
+        <span id="conn-status" class="conn-status" data-state="reconnecting" title="Event stream status">connecting…</span>
+        <div class="controls">
+            <div class="focus-switch" role="group" aria-label="Window layout">
+                <button id="focus-graph" type="button" aria-pressed="false"
+                        title="Give the canvas the whole window (G)">Graph</button>
+                <button id="focus-split" type="button" aria-pressed="true"
+                        title="Balanced three-column layout (S)">Split</button>
+                <button id="focus-panels" type="button" aria-pressed="false"
+                        title="Widen the side panels for reading (W)">Panels</button>
+            </div>
+            <button id="btn-focus-view" type="button" aria-pressed="false"
+                    title="Focus view: the evidence chain laid out for reading (V)">Focus</button>
+            <button id="btn-fit" title="Fit graph to view">Fit</button>
+            <button id="btn-replay" title="Replay how this graph was built, one event at a time (P)">Replay</button>
+            <button id="btn-credibility">Credibility</button>
+            <button id="btn-audit" title="Conclusion, findings, claim credibility and methodology in one document">Report</button>
+            <button id="btn-config" title="API &amp; reasoning config">API Config</button>
+            <div class="settings-wrapper">
+                <button id="btn-settings" title="Settings">&#9881;</button>
+                <div class="settings-dropdown" id="settings-dropdown">
+                    <div class="settings-group">
+                        <label class="settings-label">Theme</label>
+                        <label class="settings-option">
+                            <input type="radio" name="theme" value="light" checked /> Light
+                        </label>
+                        <label class="settings-option">
+                            <input type="radio" name="theme" value="dark" /> Dark
+                        </label>
+                    </div>
+                    <div class="settings-group" style="margin-top: 0.6rem; border-top: 1px solid var(--border); padding-top: 0.6rem;">
+                        <label class="settings-label">Node Shape</label>
+                        <label class="settings-option">
+                            <input type="radio" name="node-shape" value="typed" /> Typed shapes
+                        </label>
+                        <label class="settings-option">
+                            <input type="radio" name="node-shape" value="circle" checked /> Circle
+                        </label>
+                    </div>
+                    <div class="settings-group" style="margin-top: 0.6rem; border-top: 1px solid var(--border); padding-top: 0.6rem;">
+                        <label class="settings-label">Edge Inference</label>
+                        <label class="settings-option">
+                            <input type="radio" name="edge-inference" value="llm_assisted" /> LLM-assisted (heuristic + model-proposed edges; needs API mode)
+                        </label>
+                        <label class="settings-option">
+                            <input type="radio" name="edge-inference" value="heuristic" checked /> Heuristic only (temporal + retroactive + cross-type)
+                        </label>
+                    </div>
+                    <div class="settings-group" style="margin-top: 0.6rem; border-top: 1px solid var(--border); padding-top: 0.6rem;">
+                        <label class="settings-label">Layout Mode</label>
+                        <label class="settings-option">
+                            <input type="radio" name="layout-mode" value="organic" checked /> Organic (graph)
+                        </label>
+                        <label class="settings-option">
+                            <input type="radio" name="layout-mode" value="dagre" /> Dagre (hierarchy)
+                        </label>
+                        <label class="settings-option">
+                            <input type="radio" name="layout-mode" value="timeline" /> Timeline
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <div class="main-layout">
+        <aside class="sidebar">
+            <!-- Search -->
+            <section>
+                <h2>Search</h2>
+                <div class="search-box">
+                    <input type="text" id="search-input" placeholder="Search claims, numbers, labels..." />
+                    <button id="search-btn">Go</button>
+                </div>
+                <div class="search-results" id="search-results"></div>
+            </section>
+
+            <!-- Node / edge detail -->
+            <section>
+                <h2>Detail</h2>
+                <div class="detail-panel" id="detail-panel">
+                    <p style="color: var(--text-muted); font-size: 0.8rem;">Click a node or edge to see details</p>
+                </div>
+            </section>
+
+            <!-- Conclusion (convergence) -->
+            <section>
+                <h2>Conclusion</h2>
+                <div class="conclusion-actions">
+                    <button id="btn-summarize" class="sidebar-btn primary"
+                            title="Cluster the result nodes into ≤5 findings and update the conclusion file">
+                        &#9054; Summarize files
+                    </button>
+                    <button id="btn-conclusion" class="sidebar-btn"
+                            title="Open the conclusion file (created on first use, then kept updated)">
+                        View conclusion file
+                    </button>
+                    <button id="btn-force-conclude" class="sidebar-btn"
+                            title="Force the model to write the conclusion now (requires API mode in API Config)">
+                        &#9889; Force-generate (API)
+                    </button>
+                </div>
+                <p class="conclusion-hint" id="conclusion-hint">Converge results into ≤5 findings.</p>
+            </section>
+
+            <!-- Legend -->
+            <section>
+                <h2>Node Types</h2>
+                <div class="legend" id="legend"></div>
+            </section>
+
+            <!-- Edge Type Legend (F2) -->
+            <section>
+                <h2>Edge Types</h2>
+                <div class="legend edge-legend" id="edge-legend"></div>
+            </section>
+
+            <!-- Credibility legend -->
+            <section>
+                <h2>Credibility</h2>
+                <div class="legend">
+                    <div class="legend-item" data-credibility="green">
+                        <div class="legend-swatch" style="background: #689D6A;"></div>
+                        <span>High (&ge; 0.72)</span>
+                    </div>
+                    <div class="legend-item" data-credibility="yellow">
+                        <div class="legend-swatch" style="background: #D79921;"></div>
+                        <span>Medium (&ge; 0.4)</span>
+                    </div>
+                    <div class="legend-item" data-credibility="red">
+                        <div class="legend-swatch" style="background: #CC241D;"></div>
+                        <span>Low (&lt; 0.4)</span>
+                    </div>
+                </div>
+                <details class="cred-help">
+                    <summary>How is this calculated?</summary>
+                    <p>Each claim is scored on the strength of its evidence chain across 5 dimensions, then blended with the claim's own stated confidence:</p>
+                    <ul>
+                        <li><span class="w">30%</span><b>Evidence Coverage</b> — expected upstream node types &amp; declared evidence are present</li>
+                        <li><span class="w">20%</span><b>Statistical Validity</b> — confidence value, result metrics &amp; stats</li>
+                        <li><span class="w">20%</span><b>Reproducibility</b> — runs carry git commit, environment, duration</li>
+                        <li><span class="w">15%</span><b>Data Provenance</b> — artifacts have a tracked path, version &amp; type</li>
+                        <li><span class="w">15%</span><b>Pipeline Integrity</b> — the chain motivation&nbsp;&rarr;&nbsp;result is complete</li>
+                    </ul>
+                    <p class="cred-note">Final score blends 40% structure + 60% the claim's confidence (claims below 0.5 confidence are penalized harder; no stated confidence caps the score). Thresholds: green&nbsp;&ge;&nbsp;0.72, yellow&nbsp;&ge;&nbsp;0.4, red&nbsp;&lt;&nbsp;0.4. Toggle <b>Credibility</b> in the top bar to colour claim nodes by score.</p>
+                </details>
+            </section>
+        </aside>
+
+        <!-- Graph canvas -->
+        <div class="graph-area">
+            <canvas id="bgfx" class="bgfx-canvas"></canvas>
+            <canvas id="swimlanes" class="swimlane-canvas"></canvas>
+            <div id="cy"></div>
+            <canvas id="glow" class="glow-canvas"></canvas>
+            <canvas id="minimap" width="180" height="120"></canvas>
+            <div id="path-status" class="path-status"></div>
+
+            <!-- Nothing here yet (healthy) vs cannot reach the server (broken).
+                 These used to look identical: a blank canvas and a console line. -->
+            <div id="graph-empty" class="graph-empty" hidden>
+                <h3>No evidence yet</h3>
+                <p>This task is live and listening — nothing has been pushed to it.</p>
+                <p>Point the watcher at a folder, or have your agent push its first node:</p>
+                <pre><code>curl -X POST $BASE/api/tasks/$ID/events \
+  -H "X-API-Key: $KEY" -H "Content-Type: application/json" \
+  -d '{"event_type":"create_node","payload":
+       {"node_type":"motivation","id":"MOT-001","label":"Investigate X"}}'</code></pre>
+            </div>
+            <div id="graph-error" class="graph-error" hidden></div>
+            <div id="label-drop-note" class="label-drop-note" hidden></div>
+
+            <!-- Focus view (V): the same graph laid out for reading. Its own canvas, so
+                 switching it on and off never disturbs the view underneath. -->
+            <div id="focus-view" class="focus-view" hidden>
+                <div class="fv-bar">
+                    <div class="fv-ctl">Layout
+                        <div class="fv-seg" role="group" aria-label="Focus view layout" data-key="layout">
+                            <button type="button" data-v="flow" title="One column per stage, left to right, ending in the verdicts">Flow</button>
+                            <button type="button" data-v="rings" title="The motivation at the centre, one orbit per stage, verdicts on the rim">Rings</button>
+                            <button type="button" data-v="galaxy" title="The main view's force layout, in the cleaner styling">Galaxy</button>
+                        </div>
+                    </div>
+                    <div class="fv-ctl">Colour
+                        <div class="fv-seg" role="group" aria-label="Focus view colour" data-key="palette">
+                            <button type="button" data-v="types" title="Each node type in its own colour">Types</button>
+                            <button type="button" data-v="calm" title="One blue ramp for the chain; colour kept for the verdicts">Calm</button>
+                        </div>
+                    </div>
+                    <div class="fv-ctl">Labels
+                        <div class="fv-seg" role="group" aria-label="Focus view labels" data-key="labels">
+                            <button type="button" data-v="verdicts" title="Label the claims and conclusions">Verdicts</button>
+                            <button type="button" data-v="all" title="Label every node">All</button>
+                        </div>
+                    </div>
+                    <div class="fv-ctl">Text
+                        <input type="range" id="fv-text" class="fv-range" min="80" max="180" step="10" value="100"
+                               aria-label="Focus view text size" title="Size of the labels on the canvas · double-click to reset">
+                        <output id="fv-text-val" class="fv-range-val" for="fv-text">100%</output>
+                    </div>
+                </div>
+                <div class="fv-stage">
+                    <div id="fv-cy" class="fv-cy"></div>
+                    <canvas id="fv-fx" class="fv-fx"></canvas>
+                    <div class="fv-hint">Hover a node to trace its lineage · click to pin it</div>
+                    <div id="fv-tip" class="fv-tip" hidden></div>
+                </div>
+                <div id="fv-legend" class="fv-legend"></div>
+            </div>
+        </div>
+
+        <!-- Right panel: live activity log of how the network evolves -->
+        <aside class="right-panel" id="right-panel" data-collapsed="false">
+            <!-- Shown only while the panel is folded away (A, or the heading's caret). -->
+            <button type="button" class="activity-rail" id="activity-rail" aria-expanded="true"
+                    aria-controls="right-panel" title="Show the activity panel (A)">
+                <span class="rail-caret" aria-hidden="true">&#9666;</span>
+                <span class="rail-label">Activity</span>
+                <span class="rail-count" id="activity-rail-count" hidden>0</span>
+            </button>
+            <div class="right-panel-head">
+                <h2><button type="button" class="panel-toggle" id="activity-toggle" aria-expanded="true"
+                            aria-controls="right-panel" title="Hide the activity panel (A)"><span
+                            class="panel-caret" aria-hidden="true">&#9656;</span>Activity</button></h2>
+                <button id="activity-clear" title="Clear the log">clear</button>
+            </div>
+            <!-- Launched Claude Code workflows: state, elapsed time, and a stop button. -->
+            <div class="job-strip" id="job-strip" hidden></div>
+            <div class="activity-log" id="activity-log">
+                <div class="activity-empty">Waiting for network events…</div>
+            </div>
+            <div class="file-panel" id="file-panel">
+                <div class="file-panel-head">
+                    <span id="file-panel-title">File</span>
+                    <button id="file-open" title="Reveal this file in its folder" disabled>Open folder</button>
+                </div>
+                <div class="file-panel-body" id="file-panel-body">
+                    <div class="file-empty">Click a node to see its file, or an edge for the relationship.</div>
+                </div>
+            </div>
+        </aside>
+    </div>
+
+    <footer>
+        <div class="stat" id="footer-stats">
+            <span>Loading...</span>
+        </div>
+        <div>Auto-Research Monitor v0.1</div>
+    </footer>
+
+    <!-- Audit modal -->
+    <div class="modal-overlay" id="audit-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h2>Evidence Report</h2>
+                <a id="report-download" class="report-download" download hidden
+                   title="Save this report as a markdown file">&#8595; Download .md</a>
+                <button class="modal-close" id="audit-close">&times;</button>
+            </div>
+            <div class="modal-body" id="audit-body">
+            </div>
+        </div>
+    </div>
+
+    <!-- Conclusion modal -->
+    <div class="modal-overlay" id="conclusion-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h2>Conclusion</h2>
+                <button class="modal-close" id="conclusion-close">&times;</button>
+            </div>
+            <div class="modal-body" id="conclusion-body">
+            </div>
+        </div>
+    </div>
+
+    <!-- API & Reasoning config modal -->
+    <div class="modal-overlay" id="config-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h2>API &amp; Reasoning Config</h2>
+                <button class="modal-close" id="config-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="cfg-row">
+                    <label class="cfg-label">Reasoning mode</label>
+                    <div class="cfg-radios">
+                        <label><input type="radio" name="reasoning-mode" value="heuristic" checked /> Heuristic <span class="cfg-muted">(no API)</span></label>
+                        <label><input type="radio" name="reasoning-mode" value="api" /> API</label>
+                        <label><input type="radio" name="reasoning-mode" value="cli" /> CLI prompt</label>
+                    </div>
+                </div>
+                <div class="cfg-row">
+                    <label class="cfg-label" for="cfg-provider">Provider</label>
+                    <select id="cfg-provider" class="cfg-input">
+                        <option value="anthropic">Anthropic</option>
+                        <option value="openai">OpenAI</option>
+                        <option value="google">Google (Gemini)</option>
+                        <option value="openrouter">OpenRouter</option>
+                    </select>
+                </div>
+                <div class="cfg-row">
+                    <label class="cfg-label" for="cfg-model">Model</label>
+                    <input type="text" id="cfg-model" class="cfg-input" placeholder="provider default" />
+                </div>
+                <div class="cfg-row">
+                    <label class="cfg-label" for="cfg-key">API key <span class="cfg-muted">(per provider)</span></label>
+                    <input type="password" id="cfg-key" class="cfg-input" placeholder="stored server-side, never echoed" />
+                    <button id="cfg-clear-key" class="cfg-linkbtn" type="button" title="Clear the stored key for this provider">Clear key</button>
+                </div>
+                <div class="cfg-row">
+                    <label class="cfg-label" for="cfg-base">Base URL <span class="cfg-muted">(optional)</span></label>
+                    <input type="text" id="cfg-base" class="cfg-input" placeholder="provider default" />
+                    <span class="cfg-muted" id="cfg-base-hint"></span>
+                </div>
+                <div class="cfg-row">
+                    <label class="cfg-label" for="cfg-max">Max tokens</label>
+                    <input type="number" id="cfg-max" class="cfg-input" min="1" step="100" placeholder="4000" />
+                </div>
+                <div class="cfg-row cfg-actions">
+                    <button id="cfg-save" class="sidebar-btn primary">Save config</button>
+                    <button id="cfg-reset" class="sidebar-btn" type="button" title="Drop runtime overrides; re-resolve from config.json / env">Reset</button>
+                </div>
+                <div class="cfg-usage" id="cfg-usage">tokens since start: — &middot; est. cost ~$0.00</div>
+                <hr class="cfg-hr" />
+                <div class="cfg-actions">
+                    <button id="btn-cli-prompt" class="sidebar-btn">Get CLI trigger prompt</button>
+                    <button id="btn-infer-edges" class="sidebar-btn">Run LLM edge inference</button>
+                </div>
+                <div class="cfg-note" id="cfg-note"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="graph-tooltip" class="graph-tooltip"></div>
+    <script src="app.js?v=69"></script>
+</body>
+</html>

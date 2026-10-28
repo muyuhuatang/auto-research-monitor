@@ -1,0 +1,848 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <script src="demo.js"></script>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Auto-Research Monitor — Tasks</title>
+    <!-- Sets data-theme before first paint, so the page never flashes the wrong theme. -->
+    <script src="theme.js?v=1"></script>
+    <link rel="stylesheet" href="style.css?v=26" />
+    <style>
+        /* ------------------------------------------------------------------
+           Dashboard-only styles. Everything here is scoped to this page so it
+           cannot collide with edits to style.css. Colours come from the shared
+           CSS variables declared in style.css :root — no new hex values.
+           ------------------------------------------------------------------ */
+
+        /* style.css locks the body to a non-scrolling flex column for the graph
+           viewer. The dashboard is a normal scrolling document. */
+        body {
+            display: block;
+            height: auto;
+            min-height: 100vh;
+            overflow-x: hidden;
+            overflow-y: auto;
+        }
+
+        .dashboard {
+            max-width: 62rem;
+            margin: 0 auto;
+            padding: 2rem 1.5rem 4rem;
+        }
+
+        /* --- shared micro-typography -------------------------------------- */
+        .micro {
+            font-size: 0.66rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.07em;
+        }
+
+        .mono {
+            font-family: ui-monospace, SFMono-Regular, 'JetBrains Mono', Menlo, Consolas, monospace;
+        }
+
+        /* Author `display:` rules below beat the UA sheet's [hidden]{display:none},
+           and this page toggles visibility with the `hidden` property throughout.
+           Without this, hiding a flex/grid element would silently do nothing. */
+        [hidden] { display: none !important; }
+
+        a:focus-visible,
+        button:focus-visible {
+            outline: 2px solid var(--accent);
+            outline-offset: 2px;
+        }
+
+        /* --- hero ---------------------------------------------------------- */
+        /* The hero is a <header>, so style.css's top-bar rule makes it a flex row. Left
+           alone, that squeezed the title into a narrow first column and broke it over
+           three lines. Wrapping gives the brand a row of its own, with the tagline,
+           lede and steps as three columns beneath it (stacked on a phone). */
+        .hero {
+            padding-bottom: 1.3rem;
+            margin-bottom: 1.3rem;
+            border-bottom: 1px solid var(--border);
+            flex-wrap: wrap;
+            align-items: flex-start;
+            gap: 1.1rem 2.2rem;
+        }
+
+        .hero-brand {
+            flex-basis: 100%;
+            display: flex;
+            align-items: center;
+            gap: 0.8rem;
+        }
+
+        /* The brand mark: the same little evidence graph the landing page uses (a
+           conclusion with three findings feeding it), on a softly lit tile. */
+        .hero-mark {
+            flex: none;
+            display: grid;
+            place-items: center;
+            width: 3.4rem;
+            height: 3.4rem;
+            border-radius: 15px;
+            background:
+                radial-gradient(120% 120% at 30% 20%, var(--accent-soft), transparent 70%),
+                var(--surface);
+            border: 1px solid var(--accent-line);
+            box-shadow: var(--glow);
+        }
+
+        .hero-mark svg { width: 2.9rem; height: 2.9rem; overflow: visible; }
+        .hero-mark .hm-edges { stroke: var(--accent); stroke-width: 1.7; stroke-linecap: round; opacity: 0.5; }
+        .hero-mark .hm-node { stroke: var(--surface); stroke-width: 1.6; }
+        .hero-mark .hm-halo {
+            fill: var(--accent);
+            opacity: 0.18;
+            transform-box: fill-box;
+            transform-origin: center;
+            animation: hm-breathe 3.2s ease-in-out infinite;
+        }
+
+        @keyframes hm-breathe {
+            0%, 100% { transform: scale(1); opacity: 0.18; }
+            50% { transform: scale(1.35); opacity: 0.04; }
+        }
+
+        .hero h1 {
+            font-size: 1.6rem;
+            font-weight: 600;
+            letter-spacing: -0.005em;
+            white-space: nowrap;
+        }
+
+        .hero-tagline {
+            flex: 1 1 13rem;
+            font-size: 1rem;
+            line-height: 1.4;
+        }
+
+        .hero-lede {
+            flex: 2 1 22rem;
+            font-size: 0.84rem;
+            line-height: 1.6;
+            color: var(--text-muted);
+            max-width: 58ch;
+        }
+
+        .hero-steps {
+            flex: 1 1 11rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.35rem;
+        }
+
+        .hero-step {
+            display: flex;
+            align-items: baseline;
+            gap: 0.4rem;
+            font-size: 0.76rem;
+            color: var(--text-muted);
+        }
+
+        .hero-step > .micro { color: var(--accent); }
+
+        /* --- overview strip ------------------------------------------------ */
+        .overview {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: baseline;
+            gap: 0.5rem 1.6rem;
+            padding: 0.6rem 0.85rem;
+            margin-bottom: 1.2rem;
+            border: 1px dashed var(--border);
+            border-radius: 8px;
+            transition: border-color 0.2s, background 0.2s;
+        }
+
+        .overview[data-state="ready"] {
+            border-style: solid;
+            background: var(--surface);
+        }
+
+        .ov-item { display: flex; align-items: baseline; gap: 0.4rem; }
+        .ov-num { font-size: 0.95rem; font-weight: 600; }
+        .ov-num.muted { color: var(--text-muted); }
+
+        /* --- section head -------------------------------------------------- */
+        .section-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 0.6rem 1rem;
+            margin-bottom: 0.7rem;
+        }
+
+        .section-head h2 {
+            display: flex;
+            align-items: center;
+            gap: 0.45rem;
+            font-size: 0.66rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.07em;
+        }
+
+        .count-pill {
+            padding: 0 0.4rem;
+            border: 1px solid var(--border);
+            border-radius: 99px;
+            font-size: 0.66rem;
+            color: var(--text-muted);
+            letter-spacing: 0;
+        }
+
+        .head-btns { display: flex; gap: 0.5rem; flex-shrink: 0; }
+
+        .btn-add {
+            flex-shrink: 0;
+            padding: 0.42rem 0.8rem;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            background: transparent;
+            color: var(--text);
+            cursor: pointer;
+            font-size: 0.78rem;
+            font-weight: 600;
+            transition: background 0.15s, color 0.15s, border-color 0.15s;
+        }
+        .btn-add:hover { border-color: var(--accent); color: var(--accent); }
+        .btn-add[aria-expanded="true"] { border-color: var(--accent); color: var(--accent); background: var(--surface); }
+        .btn-add.primary { border-color: var(--accent); color: var(--accent); }
+        .btn-add[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+        /* A solid var(--accent) fill under var(--text) is ~2.2:1 in the current
+           palette (violet accent, cream text) — unreadable. Keep the accent as the
+           foreground and use the existing surface as the fill. */
+        .btn-add.primary:hover { background: var(--surface2); border-color: var(--accent); color: var(--accent); }
+
+        /* --- task list ----------------------------------------------------- */
+        .task-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .task-row {
+            display: flex;
+            align-items: stretch;
+            gap: 0.5rem;
+        }
+
+        @keyframes row-enter {
+            from { opacity: 0; transform: translateX(-8px); }
+            to   { opacity: 1; transform: none; }
+        }
+        .task-row.enter { animation: row-enter 0.35s ease-out both; }
+
+        .task-card {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 0.6rem 1rem;
+            padding: 0.8rem 1rem;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            text-decoration: none;
+            color: var(--text);
+            transition: border-color 0.15s, background 0.15s;
+            flex: 1;
+            min-width: 0;
+        }
+
+        .task-card:hover {
+            border-color: var(--accent);
+            background: var(--surface2);
+        }
+
+        .tc-main {
+            flex: 1 1 15rem;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+
+        .tc-top {
+            display: flex;
+            align-items: center;
+            gap: 0.55rem;
+            min-width: 0;
+        }
+
+        .task-name {
+            font-weight: 600;
+            font-size: 0.95rem;
+            /* A flex item defaults to min-width:auto, so without this the ellipsis
+               never fires: a long name just pushes the glyphs out of the card. */
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .task-name .lineage-suffix {
+            color: var(--text-muted);
+            font-weight: 400;
+        }
+
+        .task-meta {
+            font-size: 0.72rem;
+            color: var(--text-muted);
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+        }
+
+        /* Capability glyphs: lit when the artefact actually exists in the graph. */
+        /* A bundled example (server/tasks/examples.py). Says so, and nothing else changes. */
+        .ex-badge {
+            flex-shrink: 0;
+            padding: 0.08rem 0.45rem;
+            border: 1px solid var(--accent-line, var(--border));
+            border-radius: 999px;
+            background: var(--accent-soft, transparent);
+            color: var(--accent);
+            font-size: 0.6rem;
+            font-weight: 600;
+            letter-spacing: 0.07em;
+            text-transform: uppercase;
+        }
+
+        .glyphs {
+            display: flex;
+            gap: 0.22rem;
+            flex-shrink: 0;
+            font-size: 0.75rem;
+            line-height: 1;
+        }
+        /* --border is a 1px hairline colour (rgba(255,255,255,0.08) in the current
+           theme). As *text* it is effectively invisible, so an unlit glyph would
+           read as a missing character rather than a dim one. Dim the muted text
+           colour instead. */
+        .glyph { color: var(--text-muted); opacity: 0.3; transition: color 0.2s, opacity 0.2s; }
+        .glyph.on { color: var(--accent); opacity: 1; }
+
+        /* Three-state vocabulary: dashed = not known yet, solid = real data. */
+        .tc-stats {
+            display: flex;
+            align-items: center;
+            gap: 0.9rem;
+            flex: 0 0 auto;
+            padding: 0.35rem 0.6rem;
+            border: 1px dashed var(--border);
+            border-radius: 6px;
+            transition: border-color 0.2s, background 0.2s;
+        }
+        .tc-stats[data-state="ready"] {
+            border-style: solid;
+            background: var(--bg);
+        }
+        .tc-stats[data-state="error"] { border-style: dotted; }
+
+        .stat { display: flex; flex-direction: column; line-height: 1.15; }
+        .stat-num { font-size: 0.88rem; font-weight: 600; }
+        .stat-num.muted { color: var(--text-muted); }
+
+        .cred { display: flex; flex-direction: column; gap: 0.3rem; min-width: 6.5rem; }
+
+        .cred-bar {
+            display: flex;
+            height: 4px;
+            border-radius: 2px;
+            overflow: hidden;
+            background: var(--border);
+        }
+        .cred-bar[data-empty="1"] {
+            height: 6px;
+            background: transparent;
+            border: 1px dashed var(--border);
+        }
+        .cred-seg { height: 100%; }
+        .cred-seg.g { background: var(--green); }
+        .cred-seg.y { background: var(--yellow); }
+        .cred-seg.r { background: var(--red); }
+
+        .cred-counts { display: flex; gap: 0.5rem; font-size: 0.7rem; }
+        .cc { display: flex; align-items: center; gap: 0.25rem; }
+        .cc .dot { width: 0.4rem; height: 0.4rem; border-radius: 50%; display: inline-block; }
+        .cc.g .dot { background: var(--green); }
+        .cc.y .dot { background: var(--yellow); }
+        .cc.r .dot { background: var(--red); }
+        .cc.zero { opacity: 0.32; }
+        .cred-none { font-size: 0.7rem; color: var(--text-muted); }
+
+        .task-arrow {
+            color: var(--text-muted);
+            font-size: 1.15rem;
+            flex-shrink: 0;
+            margin-left: auto;
+        }
+
+        .btn-kill {
+            padding: 0.45rem 0.7rem;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            background: transparent;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 0.75rem;
+            font-weight: 600;
+            transition: background 0.15s, color 0.15s, border-color 0.15s;
+            white-space: nowrap;
+        }
+
+        .btn-kill:hover {
+            border-color: var(--red);
+            background: var(--red);
+            color: var(--text);
+        }
+
+        .btn-kill:disabled { opacity: 0.45; cursor: progress; }
+
+        /* --- states: loading / error / empty -------------------------------- */
+        .state-block {
+            padding: 2rem 1rem;
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            text-align: center;
+        }
+
+        .onboard {
+            border: 1px dashed var(--border);
+            border-radius: 10px;
+            padding: 1.5rem 1.4rem 0.6rem;
+        }
+
+        /* Below the bundled examples (dashboard.js showNextSteps), not in place of a list. */
+        .task-list + .onboard { margin-top: 1rem; }
+
+        .onboard h3 { font-size: 0.98rem; margin-bottom: 0.35rem; }
+
+        .onboard .lede {
+            font-size: 0.84rem;
+            line-height: 1.6;
+            color: var(--text-muted);
+            max-width: 58ch;
+            margin-bottom: 1.1rem;
+        }
+
+        .ob-step {
+            display: grid;
+            grid-template-columns: 1.6rem 1fr;
+            gap: 0.2rem 0.75rem;
+            padding: 0.85rem 0;
+            border-top: 1px solid var(--border);
+        }
+
+        .ob-num { color: var(--accent); padding-top: 0.15rem; }
+
+        .ob-body h4 { font-size: 0.85rem; font-weight: 600; margin-bottom: 0.2rem; }
+
+        .ob-body p {
+            font-size: 0.78rem;
+            line-height: 1.55;
+            color: var(--text-muted);
+            margin-bottom: 0.5rem;
+            max-width: 62ch;
+        }
+
+        .cmd {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 0.4rem 0.4rem 0.4rem 0.6rem;
+            max-width: 46rem;
+        }
+
+        .cmd code {
+            flex: 1;
+            min-width: 0;
+            font-size: 0.75rem;
+            color: var(--text);
+            white-space: pre;
+            overflow-x: auto;
+            font-family: ui-monospace, SFMono-Regular, 'JetBrains Mono', Menlo, Consolas, monospace;
+        }
+
+        .cmd-copy {
+            flex-shrink: 0;
+            min-width: 4.4rem;
+            padding: 0.2rem 0.5rem;
+            border: 1px solid var(--border);
+            border-radius: 5px;
+            background: transparent;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 0.68rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            transition: color 0.15s, border-color 0.15s;
+        }
+        .cmd-copy:hover { color: var(--accent); border-color: var(--accent); }
+
+        .ob-hint {
+            font-size: 0.78rem;
+            line-height: 1.55;
+            color: var(--text-muted);
+            padding: 0.85rem 0 1rem;
+            border-top: 1px solid var(--border);
+        }
+
+        .link-btn {
+            background: none;
+            border: none;
+            padding: 0;
+            color: var(--accent);
+            font: inherit;
+            cursor: pointer;
+            text-decoration: underline;
+            text-underline-offset: 2px;
+        }
+
+        /* --- add-existing-folder panel -------------------------------------- */
+        .add-panel {
+            display: none;
+            margin-bottom: 1.1rem;
+            padding: 0.9rem;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+        }
+        .add-panel.open { display: block; }
+
+        .add-hint { font-size: 0.78rem; color: var(--text-muted); margin: 0 0 0.55rem; }
+
+        .archived-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.3rem;
+            max-height: 320px;
+            overflow-y: auto;
+        }
+
+        .archived-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.5rem;
+            width: 100%;
+            text-align: left;
+            padding: 0.5rem 0.7rem;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            background: transparent;
+            color: var(--text);
+            font: inherit;
+            font-size: 0.82rem;
+            cursor: pointer;
+            transition: border-color 0.12s, background 0.12s;
+        }
+        .archived-row:hover { border-color: var(--accent); background: var(--surface2); }
+        .archived-row:disabled { opacity: 0.45; cursor: progress; }
+        .archived-row .ar-meta { color: var(--text-muted); font-size: 0.7rem; }
+        .archived-row .ar-badge {
+            display: inline-block;
+            margin-left: 0.35rem;
+            padding: 0 0.3rem;
+            border-radius: 4px;
+            font-size: 0.62rem;
+            color: var(--text-muted);
+            border: 1px solid var(--border);
+        }
+        .archived-row .ar-add { color: var(--green); font-weight: 600; font-size: 0.75rem; flex-shrink: 0; }
+
+        /* --- import-external-project modal (folder browser) ------------------ */
+        /* Backdrop colour is deliberately left to style.css's .modal-overlay so the
+           dashboard modal matches the viewer's (frosted) one and no new colour
+           literal is introduced here. */
+        .modal-overlay {
+            position: fixed; inset: 0;
+            display: none; align-items: center; justify-content: center; z-index: 100;
+        }
+        .modal-overlay.open { display: flex; }
+        .modal-box {
+            background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+            width: 90%; max-width: 560px; max-height: 82vh;
+            display: flex; flex-direction: column; padding: 1rem;
+        }
+        .modal-head { display: flex; justify-content: space-between; align-items: center; }
+        .modal-head h2 { font-size: 1.05rem; }
+        .modal-x { background: none; border: none; color: var(--text-muted); font-size: 1.4rem; cursor: pointer; line-height: 1; }
+        .modal-sub { color: var(--text-muted); font-size: 0.78rem; margin: 0.3rem 0 0.6rem; line-height: 1.5; }
+        .fs-path {
+            font-size: 0.78rem; color: var(--text); background: var(--bg);
+            border: 1px solid var(--border); border-radius: 6px; padding: 0.4rem 0.6rem;
+            word-break: break-all; margin-bottom: 0.5rem;
+        }
+        .fs-list {
+            flex: 1; overflow-y: auto; min-height: 180px; max-height: 44vh;
+            display: flex; flex-direction: column; gap: 0.12rem;
+        }
+        .fs-row {
+            display: flex; align-items: center; gap: 0.55rem; width: 100%; text-align: left;
+            padding: 0.4rem 0.6rem; border: none; border-radius: 6px; cursor: pointer;
+            background: transparent; color: var(--text); font: inherit; font-size: 0.82rem;
+        }
+        .fs-row:hover { background: var(--surface2); }
+        .fs-row .ic { color: var(--text-muted); width: 1.1em; text-align: center; flex-shrink: 0; }
+        .fs-row .nm { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .fs-note { color: var(--text-muted); font-size: 0.78rem; padding: 0.4rem; }
+        .modal-foot { display: flex; gap: 0.5rem; margin-top: 0.7rem; }
+        .modal-foot input {
+            flex: 1; padding: 0.45rem 0.6rem; border: 1px solid var(--border);
+            border-radius: 6px; background: var(--bg); color: var(--text); font-size: 0.85rem; outline: none;
+        }
+        .modal-foot input:focus { border-color: var(--accent); }
+        /* var(--text) on a var(--green) fill is ~2.6:1. The dark page background is
+           the only high-contrast foreground available for a filled button. */
+        .btn-watch {
+            padding: 0.45rem 0.95rem; border: 1px solid var(--green); border-radius: 6px;
+            background: var(--green); color: var(--bg); cursor: pointer; font-size: 0.8rem; font-weight: 600;
+        }
+        .btn-watch:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        /* Scrollbars appear on hover only — keeps the resting page calm. */
+        .archived-list::-webkit-scrollbar,
+        .fs-list::-webkit-scrollbar { width: 8px; }
+        .archived-list::-webkit-scrollbar-thumb,
+        .fs-list::-webkit-scrollbar-thumb { background: transparent; border-radius: 4px; }
+        .archived-list:hover::-webkit-scrollbar-thumb,
+        .fs-list:hover::-webkit-scrollbar-thumb { background: var(--border); }
+
+        @media (max-width: 640px) {
+            .dashboard { padding: 1.25rem 1rem 3rem; }
+            .hero h1 { font-size: 1.3rem; white-space: normal; }
+            .tc-stats { flex: 1 1 100%; }
+            .task-arrow { display: none; }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .task-row.enter,
+            .hero-mark .hm-halo { animation: none; }
+            * { transition-duration: 0.01ms !important; }
+        }
+    </style>
+    <link rel="stylesheet" href="demo.css" />
+</head>
+<body>
+    <div class="dashboard">
+
+        <!-- ---------------------------------------------------------------
+             Hero — what this is, in one line, above everything else.
+             --------------------------------------------------------------- -->
+        <header class="hero">
+            <div class="hero-brand">
+                <span class="hero-mark" aria-hidden="true">
+                    <svg viewBox="0 0 48 48" focusable="false">
+                        <defs>
+                            <radialGradient id="hm-core" cx="36%" cy="32%" r="75%">
+                                <stop offset="0" stop-color="#ffffff" stop-opacity="0.9"/>
+                                <stop offset="0.38" style="stop-color: var(--accent)"/>
+                                <stop offset="1" style="stop-color: var(--accent-strong)"/>
+                            </radialGradient>
+                        </defs>
+                        <g class="hm-edges">
+                            <line x1="24" y1="24" x2="10" y2="12"/>
+                            <line x1="24" y1="24" x2="39" y2="13"/>
+                            <line x1="24" y1="24" x2="37" y2="38"/>
+                        </g>
+                        <circle class="hm-halo" cx="24" cy="24" r="10"/>
+                        <circle cx="24" cy="24" r="7.5" fill="url(#hm-core)"/>
+                        <circle class="hm-node" cx="10" cy="12" r="4" fill="#689D6A"/>
+                        <circle class="hm-node" cx="39" cy="13" r="4" fill="#D79921"/>
+                        <circle class="hm-node" cx="37" cy="38" r="4" fill="#9D7CD8"/>
+                    </svg>
+                </span>
+                <h1>Auto-Research Monitor</h1>
+            </div>
+            <p class="hero-tagline">Watch a research agent work — and see which conclusions the evidence earns.</p>
+            <p class="hero-lede">
+                Point it at an autonomous research agent, or the folder it works in. Every
+                question, experiment, run, result and claim appears as a node the moment it
+                happens, each claim is scored on the evidence beneath it, and Replay shows
+                exactly how the agent got there.
+            </p>
+            <div class="hero-steps">
+                <span class="hero-step"><span class="micro">01</span> point it at the agent</span>
+                <span class="hero-step"><span class="micro">02</span> every step streams in</span>
+                <span class="hero-step"><span class="micro">03</span> every claim gets scored</span>
+                <span class="hero-step"><span class="micro">04</span> replay how it got there</span>
+            </div>
+        </header>
+
+        <!-- Aggregate across every active task. Dashed until real numbers land. -->
+        <div class="overview" id="overview" data-state="pending" hidden>
+            <span class="ov-item"><span class="ov-num" id="ov-tasks">—</span><span class="micro">tasks</span></span>
+            <span class="ov-item"><span class="ov-num" id="ov-nodes">—</span><span class="micro">nodes</span></span>
+            <span class="ov-item"><span class="ov-num" id="ov-edges">—</span><span class="micro">edges</span></span>
+            <span class="ov-item" id="ov-cred-wrap">
+                <span class="cred-counts">
+                    <span class="cc g"><span class="dot"></span><span id="ov-green">—</span></span>
+                    <span class="cc y"><span class="dot"></span><span id="ov-yellow">—</span></span>
+                    <span class="cc r"><span class="dot"></span><span id="ov-red">—</span></span>
+                </span>
+                <span class="micro">claims by credibility</span>
+            </span>
+        </div>
+
+        <!-- ---------------------------------------------------------------
+             Task list
+             --------------------------------------------------------------- -->
+        <section aria-labelledby="tasks-heading">
+            <div class="section-head">
+                <h2 id="tasks-heading">
+                    Active tasks
+                    <span class="count-pill" id="task-count" hidden>0</span>
+                </h2>
+                <div class="head-btns">
+                    <button class="btn-add" type="button" data-theme-toggle aria-pressed="false"
+                            title="Switch to the dark theme">
+                        Dark theme
+                    </button>
+                    <button class="btn-add" id="btn-add-task" type="button" aria-expanded="false"
+                            aria-controls="add-panel"
+                            title="Bring an archived or previously recorded task folder back onto the dashboard">
+                        + Add task
+                    </button>
+                    <button class="btn-add primary" id="btn-import" type="button"
+                            title="Pick a folder on this machine and watch it live — the graph builds as files appear or change">
+                        Import external project
+                    </button>
+                </div>
+            </div>
+
+            <div class="add-panel" id="add-panel">
+                <p class="add-hint">Click a hidden task folder to add it back to the dashboard:</p>
+                <div class="archived-list" id="archived-list"></div>
+            </div>
+
+            <!-- Loading -->
+            <div class="state-block" id="state-loading">Loading tasks…</div>
+
+            <!-- Request failed -->
+            <div class="state-block" id="state-error" hidden>
+                Could not reach the server. Is <code class="mono">python run.py</code> still running?
+                Retrying automatically…
+            </div>
+
+            <!-- Fresh install: the actual first command to run -->
+            <div class="onboard" id="state-empty" hidden>
+                <!-- Two versions of the heading: an empty install, or one whose only tasks
+                     are the bundled examples (dashboard.js picks; the steps are the same). -->
+                <h3 id="ob-title-empty">Nothing is being traced yet.</h3>
+                <p class="lede" id="ob-lede-empty">
+                    The server is up — this page is proof of that. What is missing is a task:
+                    a piece of work for the graph to follow. Pick whichever of these matches
+                    what you have; each one makes a task appear here within a second or two.
+                </p>
+                <h3 id="ob-title-examples" hidden>Those are examples. Next, trace your own work.</h3>
+                <p class="lede" id="ob-lede-examples" hidden>
+                    The tasks above came with the install so there is something to open — start
+                    with the churn model, the smallest one. Archive them whenever you like. Your
+                    own work shows up here as soon as you start a task in one of these ways:
+                </p>
+
+                <div class="ob-step">
+                    <span class="ob-num micro">01</span>
+                    <div class="ob-body">
+                        <h4>See one build itself from zero</h4>
+                        <p>
+                            Run this in a second terminal, from the project folder. It streams a
+                            worked Credit-Risk investigation through the SDK — about twenty nodes
+                            fade in and settle on a green-credibility claim. No key, no network.
+                        </p>
+                        <div class="cmd">
+                            <code>python examples/demos/live_demo.py</code>
+                            <button class="cmd-copy" type="button" data-copy="python examples/demos/live_demo.py">Copy</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="ob-step">
+                    <span class="ob-num micro">02</span>
+                    <div class="ob-body">
+                        <h4>Point it at a folder of your own</h4>
+                        <p>
+                            Restart the server in watch mode. Every file that appears or changes
+                            under that folder is classified and turned into a node, so an ordinary
+                            working directory becomes an evidence graph with no instrumentation.
+                        </p>
+                        <div class="cmd">
+                            <code>python run.py --watch ./my-project</code>
+                            <button class="cmd-copy" type="button" data-copy="python run.py --watch ./my-project">Copy</button>
+                        </div>
+                        <p style="margin-top: 0.55rem;">
+                            No terminal handy? Use
+                            <button class="link-btn" type="button" id="ob-import">Import external project</button>
+                            to browse to the folder instead — same thing, without the restart.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="ob-step">
+                    <span class="ob-num micro">03</span>
+                    <div class="ob-body">
+                        <h4>Let an agent push its own reasoning</h4>
+                        <p>
+                            Create a task, keep the returned <code class="mono">api_key</code>, and
+                            have the agent POST one event per decision. This is sidecar mode: the
+                            graph is written by whatever is doing the work.
+                        </p>
+                        <div class="cmd">
+                            <code>curl -X POST http://localhost:8000/api/tasks -H "Content-Type: application/json" -d '{"name":"my task"}'</code>
+                            <button class="cmd-copy" type="button">Copy</button>
+                        </div>
+                    </div>
+                </div>
+
+                <p class="ob-hint" id="ob-hidden-hint" hidden>
+                    There <span id="ob-hidden-verb">are</span>
+                    <strong><span id="ob-hidden-count">0</span></strong>
+                    hidden task <span id="ob-hidden-noun">folders</span> on disk from earlier runs —
+                    <button class="link-btn" type="button" id="ob-restore">bring one back</button>.
+                </p>
+            </div>
+
+            <!-- aria-relevant="additions" (not the default "additions text"): the
+                 rows re-time themselves and their node counts climb during a live
+                 run, and announcing every one of those text changes would make the
+                 page unusable with a screen reader. A task appearing is worth saying. -->
+            <div class="task-list" id="task-list" aria-live="polite"
+                 aria-relevant="additions" aria-busy="true"></div>
+        </section>
+    </div>
+
+    <!-- Import external project (server-side folder browser → live watch) -->
+    <div class="modal-overlay" id="import-modal">
+        <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="import-title">
+            <div class="modal-head">
+                <h2 id="import-title">Import external project</h2>
+                <button class="modal-x" type="button" id="btn-import-close" aria-label="Close">&times;</button>
+            </div>
+            <p class="modal-sub">
+                Browse to a folder on this machine and watch it live — the graph builds as
+                files appear or change. The folder is only read, never written to.
+            </p>
+            <div class="fs-path mono" id="fs-path">—</div>
+            <div class="fs-list" id="fs-list"></div>
+            <div class="modal-foot">
+                <input type="text" id="watch-name" placeholder="task name (optional)" aria-label="Task name (optional)" />
+                <button class="btn-watch" type="button" id="btn-watch">Watch this folder</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="dashboard.js?v=2"></script>
+</body>
+</html>

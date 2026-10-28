@@ -1,0 +1,37 @@
+/* Auto-Research Monitor - online demo.
+   demo.js marks <html class="static-demo"> before anything paints. Everything hidden
+   here needs a server of your own: it writes, calls a model, or reads your disk. */
+html.static-demo #btn-config,
+html.static-demo #usage-readout,
+html.static-demo #btn-summarize,
+html.static-demo #btn-force-conclude,
+html.static-demo #file-open,
+html.static-demo .settings-group:has(input[name="edge-inference"]),
+html.static-demo #btn-add-task,
+html.static-demo #btn-import,
+html.static-demo #ob-import,
+html.static-demo #ob-restore,
+html.static-demo #add-panel,
+html.static-demo .btn-kill {
+    display: none !important;
+}
+
+html.static-demo #conn-status[data-state="demo"] {
+    color: var(--accent);
+    border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+/* One quiet line above the dashboard saying what this is, with the way to get the
+   real thing. The viewer says it in its header pill instead, so it keeps its height. */
+.demo-note {
+    display: block;
+    padding: 0.4rem 1rem;
+    border-bottom: 1px solid var(--border);
+    background: color-mix(in srgb, var(--accent) 9%, var(--surface));
+    color: var(--text-muted);
+    font-size: 0.76rem;
+    text-align: center;
+    text-decoration: none;
+}
+.demo-note:hover { color: var(--text); }
+html.static-demo body:has(#cy) .demo-note { display: none; }
