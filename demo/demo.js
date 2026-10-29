@@ -13,7 +13,9 @@
     'use strict';
 
     const DATA = 'data/';
-    const REPO = 'https://github.com/muyuhuatang/auto-research-monitor-app';
+    // Where the banner sends people, and what it says. build_static.py points it at the
+    // landing page's early-access section while the code repository is private.
+    const MORE = ['../#quickstart', 'request early access to watch your own agent'];
     const READ_ONLY = 'The online demo is read-only. Install Auto-Research Monitor to run your own tasks.';
     const params = new URLSearchParams(location.search);
     const task = params.get('task');
@@ -128,10 +130,12 @@
         }
         const note = document.createElement('a');
         note.className = 'demo-note';
-        note.href = REPO;
-        note.target = '_blank';
-        note.rel = 'noopener';
-        note.textContent = 'Online demo · read-only · install it to watch your own agent →';
+        note.href = MORE[0];
+        if (/^https?:/.test(MORE[0])) {
+            note.target = '_blank';
+            note.rel = 'noopener';
+        }
+        note.textContent = `Online demo · read-only · ${MORE[1]} →`;
         document.body.prepend(note);
     });
 })();

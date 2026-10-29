@@ -231,6 +231,8 @@
   pre.code .cmd { color: #d7e0c8; }
   pre.code .cm { color: #5e5a6e; }
   pre.code .ok { color: var(--green); }
+  /* The early-access card's buttons (scripts/static_site/early-access.html). */
+  .codecard .ea-cta { display: flex; flex-wrap: wrap; gap: .7rem; margin-top: 1.4rem; }
 
   /* ---------- SECTION SHELL ---------- */
   section { padding: clamp(54px, 8vw, 96px) 0; }
@@ -413,11 +415,10 @@
       <a class="navlink" href="#features">Features</a>
       <a class="navlink" href="#how">How it works</a>
       <a class="navlink" href="#demos">Demos</a>
-      <a class="navlink" href="#quickstart">Quick start</a>
-      <a class="btn btn-git" href="https://github.com/muyuhuatang/auto-research-monitor-app" aria-label="View on GitHub">
-        <svg width="17" height="17" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
-        GitHub
-      </a>
+      
+      <a class="navlink" href="#quickstart">Early access</a>
+      <a class="btn btn-git" href="demo/">⧉ Live demo</a>
+
     </nav>
 
     <button class="nav-toggle" id="navToggle" aria-label="Toggle menu" aria-controls="navLinks" aria-expanded="false"><span></span></button>
@@ -435,7 +436,7 @@
       <h1 class="reveal d2">Watch your research agent <span class="accent">earn</span> its conclusions.</h1>
       <p class="lede reveal d3">Auto-Research Monitor watches an autonomous research agent while it works. Every question, experiment, run, result and claim lands on a live evidence lineage graph the moment it happens, each claim scored green, yellow or red by how strong the evidence beneath it really is — and Replay shows exactly how the agent got there.</p>
       <div class="hero-cta reveal d4">
-        <a class="btn btn-violet" href="#quickstart">⟩ Quick Start</a>
+        <a class="btn btn-violet" href="#quickstart">✉ Early access</a>
         <a class="btn btn-ghost" href="#demos">▶ See it live</a>
         <a class="btn btn-ghost" href="demo/">⧉ Try the demo</a>
       </div>
@@ -508,35 +509,37 @@
 <!-- ============ QUICK START BAND ============ -->
 <section class="quickband" id="quickstart" aria-labelledby="qs-h">
   <div class="wrap">
+    
     <div class="codecard">
       <div class="copyblock">
-        <span class="eyebrow">Quick start</span>
-        <h2 id="qs-h">Running in three commands.</h2>
-        <p>No build step, no frontend toolchain. Clone the repo, install the Python deps, run the server, and open your browser.</p>
+        <span class="eyebrow">Early access</span>
+        <h2 id="qs-h">Ask for the code, then run it in two commands.</h2>
+        <p>The source isn't public yet. Email to request early access, or try the live demo in your browser meanwhile. Once you have the code there is no build step and no frontend toolchain.</p>
+        <div class="ea-cta">
+          <a class="btn btn-violet" href="mailto:fhuang181@gmail.com?subject=Auto-Research%20Monitor%20early%20access">✉ Request early access</a>
+          <a class="btn btn-ghost" href="demo/">⧉ Try the live demo</a>
+        </div>
         <div class="tags"><b>Python 3.10+</b><b>FastAPI + uvicorn</b><b>zero-build frontend</b></div>
       </div>
       <div class="terminal">
         <div class="term-bar">
           <i style="background:#CC241D"></i><i style="background:#D79921"></i><i style="background:#689D6A"></i>
-          <span class="t-title">bash — auto-research-monitor-app</span>
-          <button class="copy-btn" data-copy="git clone https://github.com/muyuhuatang/auto-research-monitor-app&#10;cd auto-research-monitor-app&#10;pip install -r requirements.txt&#10;python run.py" aria-label="Copy commands to clipboard">
+          <span class="t-title">bash — auto-research-monitor</span>
+          <button class="copy-btn" data-copy="pip install -r requirements.txt&#10;python run.py" aria-label="Copy commands to clipboard">
             <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M3.5 10.5h-1A1.5 1.5 0 011 9V2.5A1.5 1.5 0 012.5 1H9a1.5 1.5 0 011.5 1.5v1"/></svg>
             <span class="lbl">Copy</span>
           </button>
         </div>
-        <pre class="code"><code><span class="cm"># 1 — get the code</span>
-<span class="pmt">$</span> <span class="cmd">git clone https://github.com/muyuhuatang/auto-research-monitor-app</span>
-<span class="pmt">$</span> <span class="cmd">cd auto-research-monitor-app</span>
-
-<span class="cm"># 2 — install dependencies</span>
+        <pre class="code"><code><span class="cm"># 1 — install dependencies</span>
 <span class="pmt">$</span> <span class="cmd">pip install -r requirements.txt</span>
 
-<span class="cm"># 3 — launch the sidecar server</span>
+<span class="cm"># 2 — launch the sidecar server</span>
 <span class="pmt">$</span> <span class="cmd">python run.py</span>
 
 <span class="ok">→ Open http://localhost:8000</span></code></pre>
       </div>
     </div>
+
   </div>
 </section>
 
@@ -655,7 +658,7 @@
       <span class="eyebrow">Five ways to see it</span>
       <h2 id="demo-h">Watch it map real reasoning, live.</h2>
       <p>Five bundled demos, from a streaming SDK build to a real Claude Opus agent being graded on its own evidence.</p>
-      <div class="demo-cta"><a class="btn btn-violet" href="demo/">⧉ Open the live demo</a><span>Four finished example runs, read-only in your browser. The five demos below run on your own machine after the <a href="#quickstart">quick start</a>.</span></div>
+      <div class="demo-cta"><a class="btn btn-violet" href="demo/">⧉ Open the live demo</a><span>Four finished example runs, read-only in your browser. The five demos below come with the app, which is in <a href="#quickstart">early access</a>.</span></div>
     </div>
 
     <div class="demo-grid">
@@ -768,21 +771,22 @@
         <p class="tagline">A live monitor for autonomous research — watch your agent work, see how every conclusion was earned, and check it.</p>
       </div>
 
+      
       <div class="foot-col">
         <h4>Product</h4>
-        <a href="https://github.com/muyuhuatang/auto-research-monitor-app/blob/main/docs/quick-start.md">Docs</a>
-        <a href="#quickstart">Quick start</a>
+        <a href="demo/">Live demo</a>
+        <a href="#quickstart">Early access</a>
         <a href="#demos">Demos</a>
         <a href="#scoring">Scoring</a>
       </div>
 
       <div class="foot-col">
         <h4>Project</h4>
-        <a href="https://github.com/muyuhuatang/auto-research-monitor-app">GitHub</a>
+        <a href="mailto:fhuang181@gmail.com?subject=Auto-Research%20Monitor">Contact</a>
         <a href="#features">Features</a>
         <a href="#how">How it works</a>
-        <a href="https://github.com/muyuhuatang/auto-research-monitor-app#sdk-reference">Python SDK</a>
       </div>
+
     </div>
 
     <div class="foot-bottom">
